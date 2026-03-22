@@ -226,6 +226,18 @@ export default function App() {
   const [showSaveInput, setShowSaveInput] = useState(false);
   const [saveName, setSaveName] = useState('');
   const [currentSessionName, setCurrentSessionName] = useState('trip');
+  const dirtyRef = useRef(false);
+
+  // Warn before leaving if there are unsaved changes
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (!dirtyRef.current) return;
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, []);
 
   // Track whether the assembly has changed since the last preview was generated
   const currentAssemblyJson = JSON.stringify({
@@ -267,12 +279,14 @@ export default function App() {
   }, []);
 
   const addFile = useCallback((file: ScannedFile) => {
+    dirtyRef.current = true;
     const item = makeAssemblyItem(file);
     setAssemblyItems(prev => [...prev, item]);
     setTocItems(prev => [...prev, { id: item.id, label: item.label }]);
   }, []);
 
   const addSeparator = useCallback(() => {
+    dirtyRef.current = true;
     const item: AssemblyItem = {
       id: nanoid(),
       kind: 'separator',
@@ -285,6 +299,7 @@ export default function App() {
   }, []);
 
   const updateItem = useCallback((id: string, changes: Partial<AssemblyItem>) => {
+    dirtyRef.current = true;
     setAssemblyItems(prev =>
       prev.map(item => (item.id === id ? { ...item, ...changes } : item)),
     );
@@ -305,6 +320,7 @@ export default function App() {
   }, [assemblyItems]);
 
   const removeItem = useCallback((id: string) => {
+    dirtyRef.current = true;
     setAssemblyItems(prev => prev.filter(i => i.id !== id));
     setTocItems(prev => prev.filter(t => t.id !== id));
   }, []);
@@ -337,6 +353,7 @@ export default function App() {
     const { active, over } = event;
 
     if (active.data.current?.type === 'file') {
+      dirtyRef.current = true;
       const file = active.data.current.file as ScannedFile;
       const newItem = makeAssemblyItem(file);
       const overIdx = over ? assemblyItems.findIndex(i => i.id === over.id) : -1;
@@ -360,6 +377,7 @@ export default function App() {
       const oldIdx = assemblyItems.findIndex(i => i.id === active.id);
       const newIdx = assemblyItems.findIndex(i => i.id === over.id);
       if (oldIdx !== -1 && newIdx !== -1) {
+        dirtyRef.current = true;
         setAssemblyItems(prev => arrayMove(prev, oldIdx, newIdx));
       }
     }
@@ -372,6 +390,7 @@ export default function App() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ filename: name, outputName, tocEnabled, assemblyItems, tocItems, collapsedDirs: [...collapsedDirs] }),
     });
+    dirtyRef.current = false;
     setCurrentSessionName(name);
     setSessions([]);  // dismiss startup banner — we just saved, no need to restore
     setShowSaveInput(false);
@@ -387,6 +406,7 @@ export default function App() {
       setTocItems(data.tocItems);
       setOutputName(data.outputName);
       setTocEnabled(data.tocEnabled);
+      dirtyRef.current = false;
       setCollapsedDirs(new Set(data.collapsedDirs ?? []));
       setCurrentSessionName(filename.replace(/\.pdfasm$/i, ''));
       setPreviewSource(null);

@@ -40,6 +40,7 @@ export interface SessionFile {
   tocEnabled: boolean;
   items: SessionFileItem[];
   tocItems: TocItem[];
+  collapsedDirs?: string[];
 }
 
 export interface SessionFileItem {

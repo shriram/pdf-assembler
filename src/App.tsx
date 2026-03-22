@@ -221,6 +221,7 @@ export default function App() {
   const [previewSource, setPreviewSource] = useState<PreviewSource>(null);
   const [activeDrag, setActiveDrag] = useState<ActiveDrag>(null);
   const [fileDropTarget, setFileDropTarget] = useState<string | null>(null);
+  const [collapsedDirs, setCollapsedDirs] = useState<Set<string>>(new Set());
   const [sessions, setSessions] = useState<SessionMeta[]>([]);
   const [showSaveInput, setShowSaveInput] = useState(false);
   const [saveName, setSaveName] = useState('');
@@ -369,7 +370,7 @@ export default function App() {
     await fetch('/api/sessions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ filename: name, outputName, tocEnabled, assemblyItems, tocItems }),
+      body: JSON.stringify({ filename: name, outputName, tocEnabled, assemblyItems, tocItems, collapsedDirs: [...collapsedDirs] }),
     });
     setCurrentSessionName(name);
     setSessions([]);  // dismiss startup banner — we just saved, no need to restore
@@ -386,6 +387,7 @@ export default function App() {
       setTocItems(data.tocItems);
       setOutputName(data.outputName);
       setTocEnabled(data.tocEnabled);
+      setCollapsedDirs(new Set(data.collapsedDirs ?? []));
       setCurrentSessionName(filename.replace(/\.pdfasm$/i, ''));
       setPreviewSource(null);
       setPreviewedJson('');
@@ -398,6 +400,11 @@ export default function App() {
   const handlePreviewFile = useCallback((file: ScannedFile) => {
     const kind = file.type === 'image' ? 'image' : 'pdf';
     setPreviewSource({ type: 'file', path: file.path, kind, label: file.name });
+  }, []);
+
+  const handlePreviewItem = useCallback((item: AssemblyItem) => {
+    if (!item.path || item.missing) return;
+    setPreviewSource({ type: 'file', path: item.path, kind: item.kind === 'image' ? 'image' : 'pdf', label: item.label });
   }, []);
 
   const handlePreviewAssembly = async () => {
@@ -578,6 +585,12 @@ export default function App() {
             onAdd={addFile}
             onAddSeparator={addSeparator}
             onPreview={handlePreviewFile}
+            collapsedDirs={collapsedDirs}
+            onToggleDir={dir => setCollapsedDirs(prev => {
+              const next = new Set(prev);
+              if (next.has(dir)) next.delete(dir); else next.add(dir);
+              return next;
+            })}
           />
         </div>
 
@@ -614,6 +627,7 @@ export default function App() {
             items={assemblyItems}
             onUpdate={updateItem}
             onRemove={removeItem}
+            onPreview={handlePreviewItem}
             fileDropTarget={fileDropTarget}
             isFileDragging={activeDrag?.type === 'file'}
           />
@@ -635,7 +649,7 @@ export default function App() {
       </div>
 
       {/* Drag overlay — ghost card shown while dragging */}
-      <DragOverlay>
+      <DragOverlay dropAnimation={null}>
         {activeDrag && (
           <div style={st.dragGhost}>
             {activeDrag.type === 'file' ? activeDrag.file.name : activeDrag.label}

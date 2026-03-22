@@ -11,6 +11,7 @@ interface Props {
   items: AssemblyItem[];
   onUpdate: (id: string, changes: Partial<AssemblyItem>) => void;
   onRemove: (id: string) => void;
+  onPreview: (item: AssemblyItem) => void;
   fileDropTarget?: string | null; // id of the item the file will be inserted before
   isFileDragging?: boolean;       // true while a file card is being dragged
 }
@@ -53,7 +54,7 @@ const s: Record<string, React.CSSProperties> = {
   },
 };
 
-export default function AssemblyList({ items, onUpdate, onRemove, fileDropTarget, isFileDragging }: Props) {
+export default function AssemblyList({ items, onUpdate, onRemove, onPreview, fileDropTarget, isFileDragging }: Props) {
   const { setNodeRef: appendRef } = useDroppable({ id: 'assembly-append' });
 
   return (
@@ -77,7 +78,7 @@ export default function AssemblyList({ items, onUpdate, onRemove, fileDropTarget
               {items.map(item => (
                 <Fragment key={item.id}>
                   {fileDropTarget === item.id && <InsertionIndicator />}
-                  <SortableItem item={item} onUpdate={onUpdate} onRemove={onRemove} />
+                  <SortableItem item={item} onUpdate={onUpdate} onRemove={onRemove} onPreview={onPreview} />
                 </Fragment>
               ))}
               <div ref={appendRef} style={{ minHeight: 40 }}>

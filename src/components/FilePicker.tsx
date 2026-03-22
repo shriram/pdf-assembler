@@ -8,6 +8,8 @@ interface Props {
   onAdd: (file: ScannedFile) => void;
   onAddSeparator: () => void;
   onPreview: (file: ScannedFile) => void;
+  collapsedDirs: Set<string>;
+  onToggleDir: (dir: string) => void;
 }
 
 const s: Record<string, React.CSSProperties> = {
@@ -155,9 +157,8 @@ function DraggableFileCard({
   );
 }
 
-export default function FilePicker({ files, onAdd, onAddSeparator, onPreview }: Props) {
+export default function FilePicker({ files, onAdd, onAddSeparator, onPreview, collapsedDirs, onToggleDir }: Props) {
   const [filterText, setFilterText] = useState('');
-  const [collapsedDirs, setCollapsedDirs] = useState<Set<string>>(new Set());
   const { positive, negative } = parseFilter(filterText);
   const hasFilter = positive.length > 0 || negative.length > 0;
 
@@ -173,13 +174,7 @@ export default function FilePicker({ files, onAdd, onAddSeparator, onPreview }: 
   const rootFiles = groups.get('') ?? [];
   const subdirs = [...groups.keys()].filter(d => d !== '').sort((a, b) => a.localeCompare(b));
 
-  const toggleDir = (dir: string) => {
-    setCollapsedDirs(prev => {
-      const next = new Set(prev);
-      if (next.has(dir)) next.delete(dir); else next.add(dir);
-      return next;
-    });
-  };
+  const toggleDir = onToggleDir;
 
   return (
     <div style={s.root}>

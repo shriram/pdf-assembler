@@ -9,6 +9,7 @@ interface Props {
   item: AssemblyItem;
   onUpdate: (id: string, changes: Partial<AssemblyItem>) => void;
   onRemove: (id: string) => void;
+  onPreview: (item: AssemblyItem) => void;
 }
 
 const s: Record<string, React.CSSProperties> = {
@@ -82,7 +83,7 @@ const s: Record<string, React.CSSProperties> = {
   },
 };
 
-export default function SortableItem({ item, onUpdate, onRemove }: Props) {
+export default function SortableItem({ item, onUpdate, onRemove, onPreview }: Props) {
   const [editingSep, setEditingSep] = useState(
     item.kind === 'separator' && (item.separatorText ?? '') === '',
   );
@@ -104,8 +105,8 @@ export default function SortableItem({ item, onUpdate, onRemove }: Props) {
 
   return (
     <>
-      <div ref={setNodeRef} style={style}>
-        <span style={s.handle} {...attributes} {...listeners} title="Drag to reorder">⠿</span>
+      <div ref={setNodeRef} style={style} onClick={() => onPreview(item)} title={item.kind !== 'separator' && !item.missing ? 'Click to preview' : undefined}>
+        <span style={s.handle} {...attributes} {...listeners} title="Drag to reorder" onClick={e => e.stopPropagation()}>⠿</span>
 
         <span style={{ ...s.badge, background: badgeColor }}>{badgeLabel}</span>
 
@@ -118,7 +119,7 @@ export default function SortableItem({ item, onUpdate, onRemove }: Props) {
             >
               {item.separatorText || <span style={{ color: '#bbb', fontStyle: 'italic' }}>click Edit to set text</span>}
             </span>
-            <button style={s.editBtn} onClick={() => setEditingSep(true)}>Edit</button>
+            <button style={s.editBtn} onClick={e => { e.stopPropagation(); setEditingSep(true); }}>Edit</button>
           </>
         ) : (
           <span style={s.labelText} title={item.missing ? `File not found: ${item.label}` : item.label}>
@@ -138,6 +139,7 @@ export default function SortableItem({ item, onUpdate, onRemove }: Props) {
             max={100}
             value={Math.round((item.scale ?? 1.0) * 100)}
             onChange={e => onUpdate(item.id, { scale: parseInt(e.target.value) / 100 })}
+            onClick={e => e.stopPropagation()}
             style={s.slider}
             title={`Scale: ${Math.round((item.scale ?? 1.0) * 100)}%`}
           />
@@ -148,10 +150,11 @@ export default function SortableItem({ item, onUpdate, onRemove }: Props) {
           style={s.tocCheck}
           checked={item.enabled !== false}
           onChange={e => onUpdate(item.id, { enabled: e.target.checked })}
+          onClick={e => e.stopPropagation()}
           title="Include in output"
         />
 
-        <button style={s.removeBtn} onClick={() => onRemove(item.id)} title="Remove">×</button>
+        <button style={s.removeBtn} onClick={e => { e.stopPropagation(); onRemove(item.id); }} title="Remove">×</button>
       </div>
 
       {editingSep && (

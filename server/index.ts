@@ -145,12 +145,13 @@ app.get('/api/sessions', async (_req, res) => {
 });
 
 app.post('/api/sessions', async (req, res) => {
-  const { filename, outputName, tocEnabled, assemblyItems, tocItems } = req.body as {
+  const { filename, outputName, tocEnabled, assemblyItems, tocItems, collapsedDirs } = req.body as {
     filename: string;
     outputName: string;
     tocEnabled: boolean;
     assemblyItems: AssemblyItem[];
     tocItems: { id: string; label: string }[];
+    collapsedDirs: string[];
   };
 
   const safeName = path.basename(String(filename)).replace(/[^a-zA-Z0-9._-]/g, '_');
@@ -175,6 +176,7 @@ app.post('/api/sessions', async (req, res) => {
       return entry;
     }),
     tocItems,
+    collapsedDirs: collapsedDirs ?? [],
   };
 
   await fs.writeFile(path.join(CWD, finalName), JSON.stringify(session, null, 2), 'utf-8');
@@ -214,6 +216,7 @@ app.get('/api/sessions/:filename', async (req, res) => {
     tocEnabled: session.tocEnabled,
     assemblyItems,
     tocItems: session.tocItems,
+    collapsedDirs: session.collapsedDirs ?? [],
   });
 });
 

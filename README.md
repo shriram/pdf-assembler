@@ -5,9 +5,12 @@
 A local web app for assembling multi-page PDF reports from a folder of
 files. I designed it primarily for creating single-file trip reports
 to submit for reimbursement, but there's no reason it can't be used
-for any other purpose that requires stitching together PDFs. However,
-note that it does not provide fine-grained PDF editing; that's not the
-goal for this software, and I don't want to over-complicate it.
+for any other purpose that requires stitching together PDFs.
+
+However, note that it does not provide fine-grained PDF editing,
+Markdown authoring, etc.; that's not the goal for this software, and I
+don't want to over-complicate it. The only thing you can “author” in
+the tool is section separators.
 
 ## How to run it
 
@@ -25,6 +28,13 @@ and plain text.
 
 If there are files named readme or cover, they are automatically
 suggested for the final document, at the top.
+
+## Saving and restoring
+
+You can save your current configuration; this creates a file with a
+`.pdfasm` extension. The system recognizes these and suggests you use
+them to restore a session at startup or reload. This enables you to
+modify the state of your folder, then reload with a new set of files.
 
 ## System dependencies
 

@@ -11,7 +11,8 @@ interface Props {
   items: AssemblyItem[];
   onUpdate: (id: string, changes: Partial<AssemblyItem>) => void;
   onRemove: (id: string) => void;
-  fileDropTarget?: string | null;
+  fileDropTarget?: string | null; // id of the item the file will be inserted before
+  isFileDragging?: boolean;       // true while a file card is being dragged
 }
 
 function InsertionIndicator() {
@@ -52,9 +53,8 @@ const s: Record<string, React.CSSProperties> = {
   },
 };
 
-export default function AssemblyList({ items, onUpdate, onRemove, fileDropTarget }: Props) {
-  const { setNodeRef } = useDroppable({ id: 'assembly-zone' });
-  const isDroppingOnZone = fileDropTarget === 'assembly-zone';
+export default function AssemblyList({ items, onUpdate, onRemove, fileDropTarget, isFileDragging }: Props) {
+  const { setNodeRef: appendRef } = useDroppable({ id: 'assembly-append' });
 
   return (
     <div>
@@ -64,13 +64,13 @@ export default function AssemblyList({ items, onUpdate, onRemove, fileDropTarget
       </div>
 
       <SortableContext items={items.map(i => i.id)} strategy={verticalListSortingStrategy}>
-        <div ref={setNodeRef} style={s.root}>
+        <div style={s.root}>
           {items.length === 0 ? (
             <div style={{
               ...s.empty,
-              ...(fileDropTarget ? { borderColor: '#4a9eff', background: '#f0f7ff', color: '#4a9eff' } : {}),
+              ...(isFileDragging ? { borderColor: '#4a9eff', background: '#f0f7ff', color: '#4a9eff' } : {}),
             }}>
-              {fileDropTarget ? 'Drop to add' : 'Add files from the left panel, or drag them here.'}
+              {isFileDragging ? 'Drop to add' : 'Add files from the left panel, or drag them here.'}
             </div>
           ) : (
             <>
@@ -80,7 +80,9 @@ export default function AssemblyList({ items, onUpdate, onRemove, fileDropTarget
                   <SortableItem item={item} onUpdate={onUpdate} onRemove={onRemove} />
                 </Fragment>
               ))}
-              {isDroppingOnZone && <InsertionIndicator />}
+              <div ref={appendRef} style={{ minHeight: 40 }}>
+                {fileDropTarget === 'assembly-append' && <InsertionIndicator />}
+              </div>
             </>
           )}
         </div>

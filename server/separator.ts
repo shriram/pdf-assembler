@@ -139,6 +139,51 @@ export async function renderMarkdownFile(filePath: string): Promise<Buffer> {
   }
 }
 
+export async function renderTextFile(filePath: string): Promise<Buffer> {
+  const content = await readFile(filePath, 'utf-8');
+  const escaped = content
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+  const html = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 11px;
+    line-height: 1.6;
+    color: #1a1a2e;
+    padding: 72px;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+</style>
+</head>
+<body>${escaped}</body>
+</html>`;
+
+  const browser = await getBrowser();
+  const page = await browser.newPage();
+  const tmpFile = `${tmpdir()}/pdfgen-txt-${randomBytes(8).toString('hex')}.html`;
+  await writeFile(tmpFile, html, 'utf-8');
+  try {
+    await page.goto(`file://${tmpFile}`, { waitUntil: 'domcontentloaded', timeout: 10000 });
+    const pdfBytes = await page.pdf({
+      width: '8.5in',
+      height: '11in',
+      margin: { top: '0', bottom: '0', left: '0', right: '0' },
+      printBackground: true,
+    });
+    return Buffer.from(pdfBytes);
+  } finally {
+    await page.close();
+    unlink(tmpFile).catch(() => {});
+  }
+}
+
 export async function renderSeparatorPage(text: string): Promise<Buffer> {
   const browser = await getBrowser();
   const page = await browser.newPage();

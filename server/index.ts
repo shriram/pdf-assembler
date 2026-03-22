@@ -7,8 +7,8 @@ import os from 'os';
 import { fileURLToPath } from 'url';
 import { scanDirectory } from './scanner.js';
 import { buildPdf } from './pdf-builder.js';
-import { initBrowser } from './separator.js';
-import type { BuildRequest } from '../src/types.js';
+import { initBrowser, renderMarkdownFile, renderTextFile } from './separator.js';
+import type { BuildRequest, AssemblyItem, SessionFile } from '../src/types.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -65,6 +65,35 @@ app.post('/api/preview-pdf', async (req, res) => {
   res.sendFile(filePath);
 });
 
+// Render a file for preview: markdown is converted to PDF via puppeteer;
+// all other types are served as-is.
+app.get('/api/render-file', async (req, res) => {
+  const rawPath = String(req.query.p ?? '');
+  if (!rawPath) { res.status(400).json({ error: 'Missing p parameter' }); return; }
+  const resolved = path.resolve(rawPath);
+  const cwdResolved = path.resolve(CWD);
+  if (!resolved.startsWith(cwdResolved + path.sep) && resolved !== cwdResolved) {
+    res.status(403).json({ error: 'Access denied' }); return;
+  }
+  try {
+    await fs.access(resolved);
+    const ext = path.extname(resolved).toLowerCase();
+    if (ext === '.md' || ext === '.markdown') {
+      const pdfBytes = await renderMarkdownFile(resolved);
+      res.contentType('application/pdf');
+      res.send(pdfBytes);
+    } else if (ext === '.txt') {
+      const pdfBytes = await renderTextFile(resolved);
+      res.contentType('application/pdf');
+      res.send(pdfBytes);
+    } else {
+      res.sendFile(resolved);
+    }
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
 app.get('/api/preview', async (req, res) => {
   const rawPath = String(req.query.p ?? '');
   if (!rawPath) { res.status(400).json({ error: 'Missing p parameter' }); return; }
@@ -94,6 +123,98 @@ app.get('/api/download/:filename', async (req, res) => {
   } catch {
     res.status(404).json({ error: 'File not found' });
   }
+});
+
+// ── Session persistence ─────────────────────────────────────────────────────
+
+app.get('/api/sessions', async (_req, res) => {
+  try {
+    const entries = await fs.readdir(CWD, { withFileTypes: true });
+    const sessions = [];
+    for (const entry of entries) {
+      if (entry.isFile() && entry.name.endsWith('.pdfasm')) {
+        const stat = await fs.stat(path.join(CWD, entry.name));
+        sessions.push({ filename: entry.name, savedAt: stat.mtime.toISOString() });
+      }
+    }
+    sessions.sort((a, b) => b.savedAt.localeCompare(a.savedAt));
+    res.json(sessions);
+  } catch {
+    res.json([]);
+  }
+});
+
+app.post('/api/sessions', async (req, res) => {
+  const { filename, outputName, tocEnabled, assemblyItems, tocItems } = req.body as {
+    filename: string;
+    outputName: string;
+    tocEnabled: boolean;
+    assemblyItems: AssemblyItem[];
+    tocItems: { id: string; label: string }[];
+  };
+
+  const safeName = path.basename(String(filename)).replace(/[^a-zA-Z0-9._-]/g, '_');
+  const finalName = safeName.endsWith('.pdfasm') ? safeName : `${safeName}.pdfasm`;
+
+  const session: SessionFile = {
+    version: 1,
+    savedAt: new Date().toISOString(),
+    outputName,
+    tocEnabled,
+    items: assemblyItems.map(item => {
+      const entry: SessionFile['items'][number] = {
+        id: item.id,
+        kind: item.kind,
+        label: item.label,
+        enabled: item.enabled,
+        includeInToc: item.includeInToc,
+      };
+      if (item.path) entry.relativePath = path.relative(CWD, item.path);
+      if (item.scale !== undefined) entry.scale = item.scale;
+      if (item.separatorText !== undefined) entry.separatorText = item.separatorText;
+      return entry;
+    }),
+    tocItems,
+  };
+
+  await fs.writeFile(path.join(CWD, finalName), JSON.stringify(session, null, 2), 'utf-8');
+  res.json({ filename: finalName });
+});
+
+app.get('/api/sessions/:filename', async (req, res) => {
+  const safeName = path.basename(req.params.filename);
+  if (!safeName.endsWith('.pdfasm')) {
+    res.status(400).json({ error: 'Invalid session filename' });
+    return;
+  }
+  let session: SessionFile;
+  try {
+    const raw = await fs.readFile(path.join(CWD, safeName), 'utf-8');
+    session = JSON.parse(raw);
+  } catch {
+    res.status(404).json({ error: 'Session not found or unreadable' });
+    return;
+  }
+
+  const assemblyItems: AssemblyItem[] = await Promise.all(
+    session.items.map(async item => {
+      if (!item.relativePath) {
+        // separator — no file to check
+        return { ...item, missing: false };
+      }
+      const absPath = path.join(CWD, item.relativePath);
+      let missing = false;
+      try { await fs.access(absPath); } catch { missing = true; }
+      return { ...item, path: missing ? undefined : absPath, missing };
+    }),
+  );
+
+  res.json({
+    outputName: session.outputName,
+    tocEnabled: session.tocEnabled,
+    assemblyItems,
+    tocItems: session.tocItems,
+  });
 });
 
 // ── Static serving (production) ────────────────────────────────────────────

@@ -19,9 +19,38 @@ export interface AssemblyItem {
   label: string;             // display label, editable
   path?: string;             // absolute path; absent for separators
   enabled?: boolean;         // if false, item is skipped in build/preview (default true)
+  missing?: boolean;         // set at session-load time if the file no longer exists
   includeInToc: boolean;
   scale?: number;            // 0.5–1.0, images only; default 1.0
   separatorText?: string;    // multi-line, emoji OK
+}
+
+// ── Session persistence ───────────────────────────────────────────────────────
+
+export interface SessionMeta {
+  filename: string;
+  savedAt: string;           // ISO 8601
+}
+
+// What gets written to the .pdfasm file (paths stored as relative)
+export interface SessionFile {
+  version: 1;
+  savedAt: string;
+  outputName: string;
+  tocEnabled: boolean;
+  items: SessionFileItem[];
+  tocItems: TocItem[];
+}
+
+export interface SessionFileItem {
+  id: string;
+  kind: AssemblyItemKind;
+  label: string;
+  relativePath?: string;     // absent for separators
+  enabled?: boolean;
+  includeInToc: boolean;
+  scale?: number;
+  separatorText?: string;
 }
 
 export interface TocItem {

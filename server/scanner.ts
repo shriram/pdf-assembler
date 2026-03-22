@@ -2,8 +2,9 @@ import fs from 'fs/promises';
 import path from 'path';
 import type { ScannedFile, FileType } from '../src/types.js';
 
-const PDF_EXTS   = new Set(['.pdf']);
-const IMAGE_EXTS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp']);
+const PDF_EXTS      = new Set(['.pdf']);
+const IMAGE_EXTS    = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp']);
+const RENDERABLE_EXTS = new Set(['.md', '.markdown', '.txt']);
 
 // Directories to skip when recursing
 const SKIP_DIRS = new Set([
@@ -19,8 +20,9 @@ function classifyFile(name: string): FileType | null {
   // readme/cover files are recognised regardless of extension
   if (README_PATTERN.test(name)) return 'readme';
 
-  if (PDF_EXTS.has(ext))   return 'pdf';
-  if (IMAGE_EXTS.has(ext)) return 'image';
+  if (PDF_EXTS.has(ext))        return 'pdf';
+  if (IMAGE_EXTS.has(ext))      return 'image';
+  if (RENDERABLE_EXTS.has(ext)) return 'pdf'; // rendered to PDF at build time
   return null;
 }
 
@@ -51,8 +53,7 @@ async function scanRecursive(
       const relPath = path.relative(rootDir, absPath);
       const relDir = path.relative(rootDir, dir);
       const ext = path.extname(entry.name).toLowerCase();
-      const MARKDOWN_EXTS = new Set(['.md', '.markdown']);
-      const embeddable = PDF_EXTS.has(ext) || IMAGE_EXTS.has(ext) || MARKDOWN_EXTS.has(ext);
+      const embeddable = PDF_EXTS.has(ext) || IMAGE_EXTS.has(ext) || RENDERABLE_EXTS.has(ext);
       results.push({
         name: entry.name,
         type,

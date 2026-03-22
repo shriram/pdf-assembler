@@ -4,26 +4,79 @@ import {
   DndContext,
   DragOverlay,
   closestCenter,
+  pointerWithin,
   PointerSensor,
   useSensor,
   useSensors,
 } from '@dnd-kit/core';
-import type { DragStartEvent, DragEndEvent, DragOverEvent } from '@dnd-kit/core';
+import type { DragStartEvent, DragEndEvent, DragOverEvent, CollisionDetection } from '@dnd-kit/core';
+
+// Custom collision detection: for file-card drags, prefer pointer-within (exact hit on
+// an item) and fall back to closest-centre for the gaps between items.  This prevents
+// the large assembly-zone container droppable from stealing the collision when the
+// pointer sits between two tightly-packed items such as separators.
+const collisionDetection: CollisionDetection = (args) => {
+  if (args.active.data.current?.type === 'file') {
+    const within = pointerWithin(args);
+    if (within.length > 0) return within;
+    return closestCenter(args);
+  }
+  return closestCenter(args);
+};
 import { arrayMove } from '@dnd-kit/sortable';
-import type { ScannedFile, AssemblyItem, TocItem, BuildResponse } from './types.js';
+import type { ScannedFile, AssemblyItem, TocItem, BuildResponse, SessionMeta } from './types.js';
 import FilePicker from './components/FilePicker.js';
 import AssemblyList from './components/AssemblyList.js';
 import TocEditor from './components/TocEditor.js';
 import PreviewPanel from './components/PreviewPanel.js';
 import type { PreviewSource } from './components/PreviewPanel.js';
 
+function formatAge(iso: string): string {
+  const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return new Date(iso).toLocaleDateString();
+}
+
 const st: Record<string, React.CSSProperties> = {
   app: {
     display: 'grid',
     gridTemplateColumns: '240px 280px 1fr',
-    gridTemplateRows: 'auto 1fr',
+    gridTemplateRows: 'auto auto 1fr',
     height: '100vh',
     gap: 0,
+  },
+  sessionBanner: {
+    gridColumn: '1 / -1',
+    background: '#f0f7ff',
+    borderBottom: '1px solid #bdd6f0',
+    padding: '8px 24px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: 10,
+    fontSize: 13,
+  },
+  sessionBannerBtn: {
+    background: '#4a9eff',
+    color: '#fff',
+    border: 'none',
+    borderRadius: 5,
+    padding: '4px 12px',
+    fontSize: 12,
+    fontWeight: 600,
+    cursor: 'pointer',
+  },
+  sessionBannerDismiss: {
+    marginLeft: 'auto',
+    background: 'none',
+    border: '1px solid #bbb',
+    borderRadius: 5,
+    padding: '3px 10px',
+    fontSize: 12,
+    cursor: 'pointer',
+    color: '#666',
   },
   tocToggle: {
     display: 'flex',
@@ -65,6 +118,24 @@ const st: Record<string, React.CSSProperties> = {
     cursor: 'pointer',
   },
   buildBtnDisabled: { background: '#666', cursor: 'not-allowed' },
+  saveBtn: {
+    background: 'rgba(255,255,255,0.15)',
+    color: '#fff',
+    border: '1px solid rgba(255,255,255,0.3)',
+    borderRadius: 6,
+    padding: '6px 12px',
+    fontSize: 13,
+    cursor: 'pointer',
+  },
+  saveInput: {
+    background: 'rgba(255,255,255,0.1)',
+    border: '1px solid rgba(255,255,255,0.3)',
+    borderRadius: 6,
+    color: '#fff',
+    padding: '6px 10px',
+    fontSize: 13,
+    width: 150,
+  },
   panel: {
     overflowY: 'auto',
     padding: 16,
@@ -141,7 +212,7 @@ export default function App() {
   const [scannedFiles, setScannedFiles] = useState<ScannedFile[]>([]);
   const [assemblyItems, setAssemblyItems] = useState<AssemblyItem[]>([]);
   const [tocItems, setTocItems] = useState<TocItem[]>([]);
-  const [outputName, setOutputName] = useState('output.pdf');
+  const [outputName, setOutputName] = useState('trip.pdf');
   const [tocEnabled, setTocEnabled] = useState(false);
   const [building, setBuilding] = useState(false);
   const [previewing, setPreviewing] = useState(false);
@@ -150,6 +221,10 @@ export default function App() {
   const [previewSource, setPreviewSource] = useState<PreviewSource>(null);
   const [activeDrag, setActiveDrag] = useState<ActiveDrag>(null);
   const [fileDropTarget, setFileDropTarget] = useState<string | null>(null);
+  const [sessions, setSessions] = useState<SessionMeta[]>([]);
+  const [showSaveInput, setShowSaveInput] = useState(false);
+  const [saveName, setSaveName] = useState('');
+  const [currentSessionName, setCurrentSessionName] = useState('trip');
 
   // Track whether the assembly has changed since the last preview was generated
   const currentAssemblyJson = JSON.stringify({
@@ -166,6 +241,10 @@ export default function App() {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
   );
+
+  useEffect(() => {
+    fetch('/api/sessions').then(r => r.json()).then(setSessions).catch(console.error);
+  }, []);
 
   useEffect(() => {
     fetch('/api/files')
@@ -257,24 +336,20 @@ export default function App() {
     const { active, over } = event;
 
     if (active.data.current?.type === 'file') {
-      // Dragging a file card into assembly
       const file = active.data.current.file as ScannedFile;
       const newItem = makeAssemblyItem(file);
-      if (over && over.id !== 'assembly-zone') {
-        // Insert before the hovered assembly item
-        const overIdx = assemblyItems.findIndex(i => i.id === over.id);
-        if (overIdx !== -1) {
-          setAssemblyItems(prev => [
-            ...prev.slice(0, overIdx),
-            newItem,
-            ...prev.slice(overIdx),
-          ]);
-          setTocItems(prev => [...prev, { id: newItem.id, label: newItem.label }]);
-          return;
-        }
+      const overIdx = over ? assemblyItems.findIndex(i => i.id === over.id) : -1;
+      if (overIdx !== -1) {
+        // Insert before the hovered item
+        setAssemblyItems(prev => [
+          ...prev.slice(0, overIdx),
+          newItem,
+          ...prev.slice(overIdx),
+        ]);
+      } else {
+        // Append to end (pointer was in empty space below all items)
+        setAssemblyItems(prev => [...prev, newItem]);
       }
-      // Append to end
-      setAssemblyItems(prev => [...prev, newItem]);
       setTocItems(prev => [...prev, { id: newItem.id, label: newItem.label }]);
       return;
     }
@@ -286,6 +361,37 @@ export default function App() {
       if (oldIdx !== -1 && newIdx !== -1) {
         setAssemblyItems(prev => arrayMove(prev, oldIdx, newIdx));
       }
+    }
+  };
+
+  const handleSaveSession = async () => {
+    const name = saveName.trim() || currentSessionName;
+    await fetch('/api/sessions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filename: name, outputName, tocEnabled, assemblyItems, tocItems }),
+    });
+    setCurrentSessionName(name);
+    setSessions([]);  // dismiss startup banner — we just saved, no need to restore
+    setShowSaveInput(false);
+    setSaveName('');
+  };
+
+  const handleLoadSession = async (filename: string) => {
+    try {
+      const res = await fetch(`/api/sessions/${encodeURIComponent(filename)}`);
+      if (!res.ok) throw new Error(`Server error ${res.status}`);
+      const data = await res.json();
+      setAssemblyItems(data.assemblyItems);
+      setTocItems(data.tocItems);
+      setOutputName(data.outputName);
+      setTocEnabled(data.tocEnabled);
+      setCurrentSessionName(filename.replace(/\.pdfasm$/i, ''));
+      setPreviewSource(null);
+      setPreviewedJson('');
+      setSessions([]);  // dismiss banner
+    } catch (err) {
+      setWarnings([`Could not load session: ${String(err)}`]);
     }
   };
 
@@ -366,7 +472,7 @@ export default function App() {
   return (
     <DndContext
       sensors={sensors}
-      collisionDetection={closestCenter}
+      collisionDetection={collisionDetection}
       onDragStart={handleDragStart}
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
@@ -397,6 +503,34 @@ export default function App() {
               placeholder="output.pdf"
               title="Output filename"
             />
+            {showSaveInput ? (
+              <>
+                <input
+                  style={st.saveInput}
+                  value={saveName}
+                  onChange={e => setSaveName(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') handleSaveSession();
+                    if (e.key === 'Escape') setShowSaveInput(false);
+                  }}
+                  placeholder="session name"
+                  autoFocus
+                />
+                <button style={st.saveBtn} onClick={handleSaveSession}>Save</button>
+                <button style={st.saveBtn} onClick={() => setShowSaveInput(false)}>Cancel</button>
+              </>
+            ) : (
+              <button
+                style={st.saveBtn}
+                onClick={() => {
+                  setSaveName(currentSessionName);
+                  setShowSaveInput(true);
+                }}
+                title="Save current assembly to a .pdfasm session file"
+              >
+                Save session
+              </button>
+            )}
             <button
               style={{ ...st.buildBtn, ...(canBuild ? {} : st.buildBtnDisabled) }}
               onClick={handleBuild}
@@ -406,6 +540,36 @@ export default function App() {
             </button>
           </div>
         </header>
+
+        {/* Session restore banner — shown on startup if .pdfasm files exist */}
+        {sessions.length > 0 && (
+          <div style={st.sessionBanner}>
+            <span>Session found:</span>
+            <strong>{sessions[0].filename}</strong>
+            <span style={{ color: '#888' }}>{formatAge(sessions[0].savedAt)}</span>
+            {sessions.length > 1 && (
+              <span style={{ color: '#aaa' }}>
+                (+{sessions.length - 1} more in directory)
+              </span>
+            )}
+            <button style={st.sessionBannerBtn} onClick={() => handleLoadSession(sessions[0].filename)}>
+              Restore
+            </button>
+            {sessions.length > 1 && sessions.slice(1).map(s => (
+              <button
+                key={s.filename}
+                style={{ ...st.sessionBannerBtn, background: '#888' }}
+                onClick={() => handleLoadSession(s.filename)}
+                title={`Saved ${formatAge(s.savedAt)}`}
+              >
+                {s.filename}
+              </button>
+            ))}
+            <button style={st.sessionBannerDismiss} onClick={() => setSessions([])}>
+              Dismiss
+            </button>
+          </div>
+        )}
 
         {/* Left: file picker */}
         <div style={st.panel}>
@@ -451,6 +615,7 @@ export default function App() {
             onUpdate={updateItem}
             onRemove={removeItem}
             fileDropTarget={fileDropTarget}
+            isFileDragging={activeDrag?.type === 'file'}
           />
 
           {tocEnabled && (

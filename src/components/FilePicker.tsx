@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useDraggable } from '@dnd-kit/core';
 import type { ScannedFile } from '../types.js';
+import { badgeForPath } from '../badges.js';
 
 interface Props {
   files: ScannedFile[];
@@ -8,18 +9,6 @@ interface Props {
   onAddSeparator: () => void;
   onPreview: (file: ScannedFile) => void;
 }
-
-const TYPE_LABEL: Record<string, string> = {
-  readme: 'COVER',
-  pdf: 'PDF',
-  image: 'IMG',
-};
-
-const TYPE_COLOR: Record<string, string> = {
-  readme: '#0891b2',
-  pdf: '#c0392b',
-  image: '#27ae60',
-};
 
 const s: Record<string, React.CSSProperties> = {
   root: { display: 'flex', flexDirection: 'column', gap: 6 },
@@ -136,12 +125,8 @@ function DraggableFileCard({
     disabled: !file.embeddable,
   });
 
-  const extRaw = file.name.includes('.') ? file.name.split('.').pop()!.toLowerCase() : '';
-  const knownBadge = TYPE_LABEL[file.type];
-  const badge = (extRaw === 'pdf' || ['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(extRaw))
-    ? knownBadge
-    : extRaw.toUpperCase() || knownBadge;
-  const bgColor = file.embeddable ? (TYPE_COLOR[file.type] ?? '#555') : '#bbb';
+  const { label: badge, color } = badgeForPath(file.path, file.type === 'readme');
+  const bgColor = file.embeddable ? color : '#bbb';
   const base = indent ? s.card : s.cardRoot;
 
   return (

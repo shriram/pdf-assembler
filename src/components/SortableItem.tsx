@@ -3,24 +3,13 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import type { AssemblyItem } from '../types.js';
 import SeparatorEditor from './SeparatorEditor.js';
+import { badgeForPath, SEPARATOR_BADGE } from '../badges.js';
 
 interface Props {
   item: AssemblyItem;
   onUpdate: (id: string, changes: Partial<AssemblyItem>) => void;
   onRemove: (id: string) => void;
 }
-
-const KIND_COLOR: Record<string, string> = {
-  pdf: '#c0392b',
-  image: '#27ae60',
-  separator: '#7f5af0',
-};
-
-const KIND_LABEL: Record<string, string> = {
-  pdf: 'PDF',
-  image: 'IMG',
-  separator: 'SEP',
-};
 
 const s: Record<string, React.CSSProperties> = {
   row: {
@@ -110,10 +99,8 @@ export default function SortableItem({ item, onUpdate, onRemove }: Props) {
     boxShadow: isDragging ? '0 4px 16px rgba(0,0,0,0.15)' : undefined,
   };
 
-  const ext = item.path ? item.path.split('.').pop()?.toLowerCase() : '';
-  const notActualPdf = item.kind === 'pdf' && ext && ext !== 'pdf';
-  const badgeLabel = notActualPdf ? ext!.toUpperCase() : KIND_LABEL[item.kind];
-  const badgeColor = notActualPdf ? '#0891b2' : (KIND_COLOR[item.kind] ?? '#888');
+  const { label: badgeLabel, color: badgeColor } =
+    item.kind === 'separator' ? SEPARATOR_BADGE : badgeForPath(item.path ?? '');
 
   return (
     <>
@@ -134,7 +121,14 @@ export default function SortableItem({ item, onUpdate, onRemove }: Props) {
             <button style={s.editBtn} onClick={() => setEditingSep(true)}>Edit</button>
           </>
         ) : (
-          <span style={s.labelText} title={item.label}>{item.label}</span>
+          <span style={s.labelText} title={item.missing ? `File not found: ${item.label}` : item.label}>
+            {item.label}
+            {item.missing && (
+              <span style={{ marginLeft: 6, fontSize: 10, color: '#c0392b', fontWeight: 700 }}>
+                file not found
+              </span>
+            )}
+          </span>
         )}
 
         {item.kind === 'image' && (

@@ -1,7 +1,7 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { PDFDocument } from 'pdf-lib';
-import { renderSeparatorPage, renderMarkdownFile } from './separator.js';
+import { renderSeparatorPage, renderMarkdownFile, renderTextFile } from './separator.js';
 import { buildTocPages, getTocPageCount } from './toc-builder.js';
 import type { AssemblyItem, BuildRequest, BuildResponse, TocItem } from '../src/types.js';
 
@@ -130,16 +130,16 @@ export async function buildPdf(
     if (item.kind === 'pdf' && item.path) {
       const ext = path.extname(item.path).toLowerCase();
       let added = 0;
-      if (ext === '.md' || ext === '.markdown') {
-        // Render markdown via puppeteer → merge resulting PDF
+      if (ext === '.md' || ext === '.markdown' || ext === '.txt') {
+        const renderer = ext === '.txt' ? renderTextFile : renderMarkdownFile;
         try {
-          const pdfBytes = await renderMarkdownFile(item.path);
-          const mdDoc = await PDFDocument.load(pdfBytes, { ignoreEncryption: true });
-          const copied = await doc.copyPages(mdDoc, mdDoc.getPageIndices());
+          const pdfBytes = await renderer(item.path);
+          const renderedDoc = await PDFDocument.load(pdfBytes, { ignoreEncryption: true });
+          const copied = await doc.copyPages(renderedDoc, renderedDoc.getPageIndices());
           for (const p of copied) doc.addPage(p);
           added = copied.length;
         } catch (err) {
-          warnings.push(`Skipped ${path.basename(item.path)}: could not render markdown (${String(err)})`);
+          warnings.push(`Skipped ${path.basename(item.path)}: could not render file (${String(err)})`);
         }
       } else {
         added = await mergePdf(doc, item.path, warnings);

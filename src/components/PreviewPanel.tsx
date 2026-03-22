@@ -90,6 +90,10 @@ function previewApiUrl(path: string) {
   return `/api/preview?p=${encodeURIComponent(path)}`;
 }
 
+function renderFileUrl(path: string) {
+  return `/api/render-file?p=${encodeURIComponent(path)}`;
+}
+
 function ImagePreview({ path, label }: { path: string; label: string }) {
   return (
     <div style={s.scrollArea}>
@@ -150,8 +154,6 @@ export default function PreviewPanel({ source, previewing }: Props) {
 
   // type === 'file'
   const { path, kind, label } = source;
-  const ext = path.split('.').pop()?.toLowerCase() ?? '';
-  const isMd = ext === 'md' || ext === 'markdown';
   const title = `PREVIEW — ${label}`;
 
   if (kind === 'image') {
@@ -165,8 +167,8 @@ export default function PreviewPanel({ source, previewing }: Props) {
 
   return (
     <div style={s.root}>
-      <div style={s.header}>{title}{isMd ? ' (markdown source)' : ''}</div>
-      <IframePreview src={previewApiUrl(path)} label={label} />
+      <div style={s.header}>{title}</div>
+      <IframePreview src={renderFileUrl(path)} label={label} />
     </div>
   );
 }

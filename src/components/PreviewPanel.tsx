@@ -1,7 +1,7 @@
 // PreviewSource is exported so App.tsx can import it
 export type PreviewSource =
   | { type: 'assembly'; blobUrl: string }
-  | { type: 'file'; path: string; kind: 'image' | 'pdf'; label: string }
+  | { type: 'file'; path: string; kind: 'image' | 'pdf'; label: string; scale?: number }
   | null;
 
 interface Props {
@@ -94,7 +94,8 @@ function renderFileUrl(path: string) {
   return `/api/render-file?p=${encodeURIComponent(path)}`;
 }
 
-function ImagePreview({ path, label }: { path: string; label: string }) {
+function ImagePreview({ path, label, scale = 1.0 }: { path: string; label: string; scale?: number }) {
+  const pct = `${Math.round(scale * 100)}%`;
   return (
     <div style={s.scrollArea}>
       <div style={s.pageMock}>
@@ -102,7 +103,7 @@ function ImagePreview({ path, label }: { path: string; label: string }) {
           <img
             src={previewApiUrl(path)}
             alt={label}
-            style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
+            style={{ maxWidth: pct, maxHeight: pct }}
           />
         </div>
       </div>
@@ -160,7 +161,7 @@ export default function PreviewPanel({ source, previewing }: Props) {
     return (
       <div style={s.root}>
         <div style={s.header}>{title}</div>
-        <ImagePreview path={path} label={label} />
+        <ImagePreview path={path} label={label} scale={source.scale} />
       </div>
     );
   }

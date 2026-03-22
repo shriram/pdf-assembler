@@ -251,6 +251,15 @@ export default function App() {
     previewSource?.type === 'assembly' && currentAssemblyJson === previewedJson;
   const previewBtnEnabled = !previewing && assemblyItems.length > 0 && !previewIsCurrentAssembly;
 
+  // Keep image preview scale in sync when the slider changes
+  useEffect(() => {
+    if (previewSource?.type !== 'file' || previewSource.kind !== 'image') return;
+    const item = assemblyItems.find(i => i.path === previewSource.path);
+    if (item && item.scale !== previewSource.scale) {
+      setPreviewSource(prev => prev && prev.type === 'file' ? { ...prev, scale: item.scale } : prev);
+    }
+  }, [assemblyItems]);
+
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
   );
@@ -424,7 +433,7 @@ export default function App() {
 
   const handlePreviewItem = useCallback((item: AssemblyItem) => {
     if (!item.path || item.missing) return;
-    setPreviewSource({ type: 'file', path: item.path, kind: item.kind === 'image' ? 'image' : 'pdf', label: item.label });
+    setPreviewSource({ type: 'file', path: item.path, kind: item.kind === 'image' ? 'image' : 'pdf', label: item.label, scale: item.scale });
   }, []);
 
   const handlePreviewAssembly = async () => {

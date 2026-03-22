@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# Run the PDF Assembler from ANY directory.
+# The server will scan the current directory for files to assemble.
+#
+# Usage:
+#   cd /path/to/your/files
+#   /path/to/pdf-page-gen/run [--port 3001]
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+TARGET_DIR="$(pwd)"
+SERVER_JS="$SCRIPT_DIR/dist-server/server/index.js"
+
+if [ ! -f "$SERVER_JS" ]; then
+  echo "Error: app not built yet. Run this first:"
+  echo "  cd $SCRIPT_DIR && make install && make build"
+  exit 1
+fi
+
+NODE_ENV=production exec node "$SERVER_JS" --cwd "$TARGET_DIR" "$@"

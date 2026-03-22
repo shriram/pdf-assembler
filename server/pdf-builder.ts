@@ -115,11 +115,16 @@ export async function buildPdf(
 
   // Chrome is kept warm by the server; getBrowser() is called inside renderSeparatorPage
 
+  // Filter out disabled items and their TOC entries
+  const activeItems = items.filter(i => i.enabled !== false);
+  const activeIds = new Set(activeItems.map(i => i.id));
+  const activeTocItems = tocItems.filter(t => activeIds.has(t.id));
+
   // Pass 1: assemble pages, build pageMap (1-based, before TOC insertion)
   const pageMap = new Map<string, number>();
   let pageCounter = 0;
 
-  for (const item of items) {
+  for (const item of activeItems) {
     pageMap.set(item.id, pageCounter + 1);
 
     if (item.kind === 'pdf' && item.path) {
@@ -152,18 +157,12 @@ export async function buildPdf(
   }
 
   // Pass 2: insert TOC at front if requested
-  if (tocItems.length > 0) {
-    // We need to insert TOC pages at index 0. buildTocPages inserts them.
-    // First figure out how many pages the TOC will occupy.
-    const tocPageCount = getTocPageCount(tocItems);
-
-    // Adjust pageMap: shift all values by tocPageCount
+  if (activeTocItems.length > 0) {
+    const tocPageCount = getTocPageCount(activeTocItems);
     for (const [id, pg] of pageMap) {
       pageMap.set(id, pg + tocPageCount);
     }
-
-    // Insert TOC pages (they go at index 0..tocPageCount-1)
-    await buildTocPages(doc, tocItems, pageMap);
+    await buildTocPages(doc, activeTocItems, pageMap);
   }
 
   const pdfBytes = await doc.save();

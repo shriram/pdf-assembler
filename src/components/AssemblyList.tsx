@@ -1,24 +1,26 @@
-import {
-  DndContext,
-  closestCenter,
-  PointerSensor,
-  useSensor,
-  useSensors,
-} from '@dnd-kit/core';
-import type { DragEndEvent } from '@dnd-kit/core';
+import { Fragment } from 'react';
 import {
   SortableContext,
-  arrayMove,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
+import { useDroppable } from '@dnd-kit/core';
 import type { AssemblyItem } from '../types.js';
 import SortableItem from './SortableItem.js';
 
 interface Props {
   items: AssemblyItem[];
-  onChange: (items: AssemblyItem[]) => void;
   onUpdate: (id: string, changes: Partial<AssemblyItem>) => void;
   onRemove: (id: string) => void;
+  fileDropTarget?: string | null;
+}
+
+function InsertionIndicator() {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6, margin: '1px 0', pointerEvents: 'none' }}>
+      <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#4a9eff', flexShrink: 0 }} />
+      <div style={{ flex: 1, height: 2, background: '#4a9eff', borderRadius: 1 }} />
+    </div>
+  );
 }
 
 const s: Record<string, React.CSSProperties> = {
@@ -50,19 +52,9 @@ const s: Record<string, React.CSSProperties> = {
   },
 };
 
-export default function AssemblyList({ items, onChange, onUpdate, onRemove }: Props) {
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-  );
-
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
-    if (over && active.id !== over.id) {
-      const oldIndex = items.findIndex(i => i.id === active.id);
-      const newIndex = items.findIndex(i => i.id === over.id);
-      onChange(arrayMove(items, oldIndex, newIndex));
-    }
-  };
+export default function AssemblyList({ items, onUpdate, onRemove, fileDropTarget }: Props) {
+  const { setNodeRef } = useDroppable({ id: 'assembly-zone' });
+  const isDroppingOnZone = fileDropTarget === 'assembly-zone';
 
   return (
     <div>
@@ -71,38 +63,33 @@ export default function AssemblyList({ items, onChange, onUpdate, onRemove }: Pr
         <div style={s.hint}>{items.length} item{items.length !== 1 ? 's' : ''}</div>
       </div>
 
-      {items.length === 0 ? (
-        <div style={s.empty}>
-          Add files from the left panel, or insert a separator page.
-        </div>
-      ) : (
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragEnd={handleDragEnd}
-        >
-          <SortableContext
-            items={items.map(i => i.id)}
-            strategy={verticalListSortingStrategy}
-          >
-            <div style={s.root}>
-              {items.map(item => (
-                <SortableItem
-                  key={item.id}
-                  item={item}
-                  onUpdate={onUpdate}
-                  onRemove={onRemove}
-                />
-              ))}
+      <SortableContext items={items.map(i => i.id)} strategy={verticalListSortingStrategy}>
+        <div ref={setNodeRef} style={s.root}>
+          {items.length === 0 ? (
+            <div style={{
+              ...s.empty,
+              ...(fileDropTarget ? { borderColor: '#4a9eff', background: '#f0f7ff', color: '#4a9eff' } : {}),
+            }}>
+              {fileDropTarget ? 'Drop to add' : 'Add files from the left panel, or drag them here.'}
             </div>
-          </SortableContext>
-        </DndContext>
-      )}
+          ) : (
+            <>
+              {items.map(item => (
+                <Fragment key={item.id}>
+                  {fileDropTarget === item.id && <InsertionIndicator />}
+                  <SortableItem item={item} onUpdate={onUpdate} onRemove={onRemove} />
+                </Fragment>
+              ))}
+              {isDroppingOnZone && <InsertionIndicator />}
+            </>
+          )}
+        </div>
+      </SortableContext>
 
       {items.length > 0 && (
         <div style={s.legend}>
           <span>⠿ drag handle</span>
-          <span>☑ = in TOC</span>
+          <span>☑ = include in output</span>
           <span>slider = image scale</span>
           <span>× = remove</span>
         </div>

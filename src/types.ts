@@ -18,6 +18,7 @@ export interface AssemblyItem {
   kind: AssemblyItemKind;
   label: string;             // display label, editable
   path?: string;             // absolute path; absent for separators
+  enabled?: boolean;         // if false, item is skipped in build/preview (default true)
   includeInToc: boolean;
   scale?: number;            // 0.5–1.0, images only; default 1.0
   separatorText?: string;    // multi-line, emoji OK

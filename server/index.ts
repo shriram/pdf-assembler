@@ -3,6 +3,7 @@ import type { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import path from 'path';
 import fs from 'fs/promises';
+import os from 'os';
 import { fileURLToPath } from 'url';
 import { scanDirectory } from './scanner.js';
 import { buildPdf } from './pdf-builder.js';
@@ -41,8 +42,43 @@ app.post('/api/build', async (req, res) => {
     res.status(400).json({ error: 'Invalid request body' });
     return;
   }
-  const result = await buildPdf(body, CWD);
-  res.json(result);
+  // Write to tmpdir so the output never appears in the scanned directory
+  const result = await buildPdf(body, os.tmpdir());
+  const filePath = path.join(os.tmpdir(), result.filename);
+  res.setHeader('X-Pdf-Warnings', JSON.stringify(result.warnings ?? []));
+  res.setHeader('X-Pdf-Pages', String(result.pageCount));
+  res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+  res.contentType('application/pdf');
+  res.sendFile(filePath);
+});
+
+app.post('/api/preview-pdf', async (req, res) => {
+  const body = req.body as BuildRequest;
+  if (!body?.items || !Array.isArray(body.items)) {
+    res.status(400).json({ error: 'Invalid request body' });
+    return;
+  }
+  const result = await buildPdf({ ...body, outputName: '__preview__.pdf' }, os.tmpdir());
+  const filePath = path.join(os.tmpdir(), result.filename);
+  res.setHeader('X-Pdf-Warnings', JSON.stringify(result.warnings ?? []));
+  res.setHeader('X-Pdf-Pages', String(result.pageCount));
+  res.sendFile(filePath);
+});
+
+app.get('/api/preview', async (req, res) => {
+  const rawPath = String(req.query.p ?? '');
+  if (!rawPath) { res.status(400).json({ error: 'Missing p parameter' }); return; }
+  const resolved = path.resolve(rawPath);
+  const cwdResolved = path.resolve(CWD);
+  if (!resolved.startsWith(cwdResolved + path.sep) && resolved !== cwdResolved) {
+    res.status(403).json({ error: 'Access denied' }); return;
+  }
+  try {
+    await fs.access(resolved);
+    res.sendFile(resolved);
+  } catch {
+    res.status(404).json({ error: 'File not found' });
+  }
 });
 
 app.get('/api/download/:filename', async (req, res) => {

@@ -50,14 +50,14 @@ const s: Record<string, React.CSSProperties> = {
     flexShrink: 0,
     letterSpacing: 0.5,
   },
-  labelInput: {
+  labelText: {
     flex: 1,
-    border: 'none',
-    outline: 'none',
     fontSize: 13,
-    background: 'transparent',
-    minWidth: 0,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
     color: '#1a1a2e',
+    minWidth: 0,
   },
   sepPreview: {
     flex: 1,
@@ -94,7 +94,6 @@ const s: Record<string, React.CSSProperties> = {
 };
 
 export default function SortableItem({ item, onUpdate, onRemove }: Props) {
-  // Open editor immediately if this is a brand-new separator (empty text)
   const [editingSep, setEditingSep] = useState(
     item.kind === 'separator' && (item.separatorText ?? '') === '',
   );
@@ -102,36 +101,27 @@ export default function SortableItem({ item, onUpdate, onRemove }: Props) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: item.id });
 
+  const enabled = item.enabled !== false;
   const style: React.CSSProperties = {
     ...s.row,
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.5 : 1,
+    opacity: isDragging ? 0.5 : enabled ? 1 : 0.4,
     boxShadow: isDragging ? '0 4px 16px rgba(0,0,0,0.15)' : undefined,
   };
+
+  const ext = item.path ? item.path.split('.').pop()?.toLowerCase() : '';
+  const notActualPdf = item.kind === 'pdf' && ext && ext !== 'pdf';
+  const badgeLabel = notActualPdf ? ext!.toUpperCase() : KIND_LABEL[item.kind];
+  const badgeColor = notActualPdf ? '#0891b2' : (KIND_COLOR[item.kind] ?? '#888');
 
   return (
     <>
       <div ref={setNodeRef} style={style}>
-        {/* Drag handle — listeners applied here only */}
-        <span style={s.handle} {...attributes} {...listeners} title="Drag to reorder">
-          ⠿
-        </span>
+        <span style={s.handle} {...attributes} {...listeners} title="Drag to reorder">⠿</span>
 
-        {/* Type badge — label and color derived from actual file extension when relevant */}
-        {(() => {
-          const ext = item.path ? item.path.split('.').pop()?.toLowerCase() : '';
-          const notActualPdf = item.kind === 'pdf' && ext && ext !== 'pdf';
-          const label = notActualPdf ? ext!.toUpperCase() : KIND_LABEL[item.kind];
-          // Non-PDF files that are typed as 'pdf' (e.g. .md) get a neutral purple
-          // instead of the misleading red PDF colour
-          const color = notActualPdf ? '#0891b2' : (KIND_COLOR[item.kind] ?? '#888');
-          return (
-            <span style={{ ...s.badge, background: color }}>{label}</span>
-          );
-        })()}
+        <span style={{ ...s.badge, background: badgeColor }}>{badgeLabel}</span>
 
-        {/* Label / separator preview */}
         {item.kind === 'separator' ? (
           <>
             <span
@@ -144,15 +134,9 @@ export default function SortableItem({ item, onUpdate, onRemove }: Props) {
             <button style={s.editBtn} onClick={() => setEditingSep(true)}>Edit</button>
           </>
         ) : (
-          <input
-            style={s.labelInput}
-            value={item.label}
-            onChange={e => onUpdate(item.id, { label: e.target.value })}
-            title="Edit label"
-          />
+          <span style={s.labelText} title={item.label}>{item.label}</span>
         )}
 
-        {/* Scale slider for images */}
         {item.kind === 'image' && (
           <input
             type="range"
@@ -165,19 +149,15 @@ export default function SortableItem({ item, onUpdate, onRemove }: Props) {
           />
         )}
 
-        {/* TOC checkbox */}
         <input
           type="checkbox"
           style={s.tocCheck}
-          checked={item.includeInToc}
-          onChange={e => onUpdate(item.id, { includeInToc: e.target.checked })}
-          title="Include in Table of Contents"
+          checked={item.enabled !== false}
+          onChange={e => onUpdate(item.id, { enabled: e.target.checked })}
+          title="Include in output"
         />
 
-        {/* Remove */}
-        <button style={s.removeBtn} onClick={() => onRemove(item.id)} title="Remove">
-          ×
-        </button>
+        <button style={s.removeBtn} onClick={() => onRemove(item.id)} title="Remove">×</button>
       </div>
 
       {editingSep && (

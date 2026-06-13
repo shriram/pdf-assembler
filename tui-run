@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# Run the PDF Assembler TUI from ANY directory.
+# It scans the current directory for files and assembles them in your terminal.
+#
+# Usage:
+#   cd /path/to/your/files
+#   /path/to/pdf-page-gen/tui-run
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+TARGET_DIR="$(pwd)"
+
+if [ ! -d "$SCRIPT_DIR/node_modules" ]; then
+  echo "Error: dependencies not installed. Run this first:"
+  echo "  cd $SCRIPT_DIR && make install"
+  exit 1
+fi
+
+cd "$SCRIPT_DIR"
+exec npx tsx tui/index.ts --cwd "$TARGET_DIR" "$@"

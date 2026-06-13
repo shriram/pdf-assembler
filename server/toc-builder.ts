@@ -6,11 +6,22 @@ import fontkit from '@pdf-lib/fontkit';
 import type { TocItem } from '../src/types.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-// Always reference fonts from the source tree so build copy issues can't corrupt them.
-// From dist-server/server/ the source server/assets/ is exactly two levels up.
-const ASSETS_DIR = path.join(__dirname, '..', '..', 'server', 'assets');
-const FONT_PATH      = path.join(ASSETS_DIR, 'NotoSans-Regular.ttf');
-const FONT_BOLD_PATH = path.join(ASSETS_DIR, 'NotoSans-Bold.ttf');
+// Resolve the fonts directory at call time so it works whether this module runs
+// from the built tree (dist-server/server/, fonts two levels up in the source
+// server/assets/) or straight from source via tsx (server/, fonts in ./assets/).
+const ASSET_DIR_CANDIDATES = [
+  path.join(__dirname, '..', '..', 'server', 'assets'), // built: prefer source fonts
+  path.join(__dirname, 'assets'),                       // source run, or built copy
+];
+
+async function resolveFontPath(file: string): Promise<string> {
+  for (const dir of ASSET_DIR_CANDIDATES) {
+    const candidate = path.join(dir, file);
+    try { await fs.access(candidate); return candidate; } catch { /* try next */ }
+  }
+  // Fall back to the first candidate so the error message is meaningful.
+  return path.join(ASSET_DIR_CANDIDATES[0], file);
+}
 
 // US Letter points
 const PAGE_W = 612;
@@ -43,8 +54,8 @@ export async function buildTocPages(
 ): Promise<void> {
   doc.registerFontkit(fontkit);
 
-  const fontBytes = await fs.readFile(FONT_PATH);
-  const boldBytes = await fs.readFile(FONT_BOLD_PATH).catch(() => fontBytes);
+  const fontBytes = await fs.readFile(await resolveFontPath('NotoSans-Regular.ttf'));
+  const boldBytes = await fs.readFile(await resolveFontPath('NotoSans-Bold.ttf')).catch(() => fontBytes);
 
   const font = await doc.embedFont(fontBytes, { subset: true });
   const boldFont = await doc.embedFont(boldBytes, { subset: true });

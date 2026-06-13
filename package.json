@@ -5,7 +5,9 @@
   "scripts": {
     "dev": "concurrently -n vite,express -c cyan,yellow \"vite\" \"tsx watch server/index.ts\"",
     "build": "vite build && tsc -p tsconfig.json && rm -rf dist-server/server/assets && cp -r server/assets dist-server/server/assets",
-    "start": "node dist-server/server/index.js"
+    "start": "node dist-server/server/index.js",
+    "tui": "tsx tui/index.ts",
+    "tui:check": "tsc -p tsconfig.tui.json"
   },
   "dependencies": {
     "@pdf-lib/fontkit": "^1.1.1",

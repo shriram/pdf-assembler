@@ -17,8 +17,13 @@ help:
 	@echo "Then open http://localhost:3001 in your browser."
 	@echo "(The server opens it automatically.)"
 	@echo ""
+	@echo "Prefer the terminal? Use the TUI instead of the browser:"
+	@echo "  cd /path/to/your/files"
+	@echo "  /path/to/$(notdir $(CURDIR))/tui-run"
+	@echo ""
 	@echo "Development (only needed if modifying this tool):"
 	@echo "  make dev        Hot-reload dev server on http://localhost:5173"
+	@echo "  make tui        Print how to launch the terminal UI on your files"
 	@echo ""
 
 install:
@@ -30,4 +35,16 @@ build:
 dev:
 	npm run dev
 
-.PHONY: help install build dev
+tui:
+	@echo ""
+	@echo "Run the TUI from the folder that holds your PDFs/images:"
+	@echo ""
+	@echo "  cd /path/to/your/files"
+	@echo "  $(CURDIR)/tui-run"
+	@echo ""
+	@echo "Tip: symlink it onto your PATH for a short command you can run anywhere:"
+	@echo "  ln -s $(CURDIR)/tui-run ~/bin/pdf-tui"
+	@echo "  cd /path/to/your/files && pdf-tui"
+	@echo ""
+
+.PHONY: help install build dev tui

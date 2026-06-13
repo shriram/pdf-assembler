@@ -16,6 +16,22 @@ the tool is section separators.
 
 Run `make` for setup and usage instructions.
 
+### Terminal UI (no browser)
+
+If you'd rather stay in the terminal, there's a TUI that does the same
+assembly without the web app:
+
+```
+cd /path/to/your/files
+/path/to/pdf-assembler/tui-run
+```
+
+It scans the current directory, lets you reorder/enable/disable items,
+add section separators, toggle a table of contents, scale images, and
+save/load `.pdfasm` sessions — then writes the assembled PDF and opens
+it. Press `?` inside the TUI for the full key list. It reuses the same
+build core as the web app, so both produce identical PDFs.
+
 ## What it does
 
 Run it in a folder that contains your files. It will assemble a
